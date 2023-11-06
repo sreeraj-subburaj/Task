@@ -1,8 +1,11 @@
 #include "../headers/Schedulers.h"
-
+#include <climits>
+#include <cmath>
+#include <iostream>
 Scheduler::Scheduler() {
     next_pcb_index = -1;
     ready_queue = NULL;
+    blocked_queue = new DList<PCB>();
 }
 
 //constructor for non-RR algs
@@ -12,6 +15,7 @@ Scheduler::Scheduler(DList<PCB> *rq, CPU *cp, int alg){
     dispatcher = NULL;
     next_pcb_index = -1;
     algorithm = alg;
+    blocked_queue = new DList<PCB>();
 }
 
 //constructor for RR alg
@@ -22,6 +26,7 @@ Scheduler::Scheduler(DList<PCB> *rq, CPU *cp, int alg, int tq){
     next_pcb_index = -1;
     algorithm = alg;
     timeq = timer = tq;
+    blocked_queue = new DList<PCB>();;
 }
 
 //dispatcher needed to be set after construction since they mutually include each other
@@ -37,31 +42,38 @@ int Scheduler::getnext() {
 
 //switch for the different algorithms
 void Scheduler::execute() {
-    if(timer > 0) timer -= .5;
-    if(ready_queue->size()) {
-        switch (algorithm) {
-            case 0:
-                fcfs();
-                break;
-            case 1:
-                srtf();
-                break;
-            case 2:
-                rr();
-                break;
-            case 3:
-                pp();
-                break;
-            default:
-                break;
-        }
-    }
-}
+    if (timer > 0) timer -= 0.5;
+    if (ready_queue->size()) {
+       
+                // Continue scheduling the process
+                switch (algorithm) {
+                    case 0:
+                        fcfs();
+                        break;
+                    case 1:
+                        srtf();
+                        break;
+                    case 2:
+                        rr();
+                        break;
+                    case 3:
+                        pp();
+                        break;
+                    case 4:
+                        pr();
+                        break;
+                    default:
+                        break;
+                }
+            }
+ }
+
 
 //simply waits for cpu to go idle and then tells dispatcher to load next in queue
 void Scheduler::fcfs() {
     next_pcb_index = 0;
-    if(cpu->isidle()) dispatcher->interrupt();
+    if(cpu->isidle())
+    dispatcher->interrupt();
 }
 
 //shortest remaining time first
@@ -100,33 +112,52 @@ void Scheduler::rr() {
     }
 }
 
-//preemptive priority
+
+
 void Scheduler::pp() {
-    int low_prio;
-    int low_index = -1;
-
-    //if cpu is idle, set next pcb in queue as lowest priority initially
-    if(!cpu->isidle()) low_prio = cpu->getpcb()->priority;
-    else{
-        low_prio = ready_queue->gethead()->priority;
-        low_index = 0;
-    }
-
-    //search through entire queue for actual lowest priority
-    for(int index = 0; index < ready_queue->size(); ++index){
-        int temp_prio = ready_queue->getindex(index)->priority;
-        if(temp_prio < low_prio){ //less than ensures FCFS is used for ties
-            low_prio = temp_prio;
-            low_index = index;
+    PCB* current_pcb = cpu->getpcb();
+    int highest_priority = INT_MAX;
+    int highest_priority_index = -1;
+    bool preempt = false;
+    for (int i = 0; i < ready_queue->size(); ++i) {
+        PCB* pcb = ready_queue->getindex(i);
+        if (pcb != nullptr && pcb->priority < highest_priority) {
+            highest_priority = pcb->priority;
+            highest_priority_index = i;
         }
     }
+    if (cpu->isidle()) {
+        preempt = true;
+    } else if (timer <= 0 && highest_priority_index != -1) {
+        if (highest_priority < current_pcb->priority) {
+            preempt = true;
+        }
+    } else if (!cpu->isidle() && highest_priority < current_pcb->priority) {
+        preempt = true;
+    }
 
-    //only -1 if couldn't find a pcb to schedule, happens if cpu is already working on lowest priority
-    if(low_index >= 0){
-        next_pcb_index = low_index;
-        dispatcher->interrupt();
+    if (preempt) {
+
+        next_pcb_index = highest_priority_index;
+        dispatcher->interrupt(); 
+        timer = timeq; 
+    } else {
+        timer -= 0.5;
     }
 }
+
+
+void Scheduler::pr() {
+        if (cpu->isidle() || timer <= 0) {
+            timer = timeq;
+            if (ready_queue->size() > 0) {
+                // Select a random process from the ready queue
+                int random_index = rand() % ready_queue->size();
+                next_pcb_index = random_index;
+                dispatcher->interrupt();
+            }
+        }
+    }
 
 /*
  *
@@ -139,6 +170,7 @@ Dispatcher::Dispatcher(){
     ready_queue = NULL;
     clock = NULL;
     _interrupt = false;
+
 }
 
 Dispatcher::Dispatcher(CPU *cp, Scheduler *sch, DList<PCB> *rq, Clock *cl) {
@@ -147,6 +179,7 @@ Dispatcher::Dispatcher(CPU *cp, Scheduler *sch, DList<PCB> *rq, Clock *cl) {
     ready_queue = rq;
     clock = cl;
     _interrupt = false;
+
 };
 
 //function to handle switching out pcbs and storing back into ready queue
