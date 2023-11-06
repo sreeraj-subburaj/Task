@@ -1,5 +1,6 @@
 #include "../headers/StatUpdater.h"
 
+#include<fstream>
 StatUpdater::StatUpdater(DList<PCB> *rq, DList<PCB> *fq, Clock *cl, int alg, std::string fn, int tq){
 ready_queue = rq;
 finished_queue = fq;
@@ -26,6 +27,7 @@ void StatUpdater::execute() {
 
 //straightforward print function that prints to file using iomanip and column for a table format
 //uses finished queue to tally up final stats
+
 void StatUpdater::print() {
     num_tasks = finished_queue->size();
     std::string alg;
@@ -50,6 +52,9 @@ void StatUpdater::print() {
         case 3:
             alg = "Preemptive Priority";
             break;
+        case 4:
+            alg = "Preemptive Random";
+            break;
     }
 
     outfile << "*******************************************************************" << std::endl;
@@ -64,7 +69,8 @@ void StatUpdater::print() {
             << "| " << std::left << std::setw(colwidth) << "Turnaround" << "| " << std::left << std::setw(colwidth) << "Response"
             << "| " << std::left << std::setw(colwidth) << "C. Switches" << "| " << std::endl
             << "----------------------------------------------------------------------------------------------------------------------" << std::endl;
-
+std::cout<<finished_queue->size();
+std::cout<<finished_queue;
     for(int id = 1; id < num_tasks+1; ++id){
         for(int index = 0; index < finished_queue->size(); ++index){
             if(finished_queue->getindex(index)->pid == id){
@@ -90,4 +96,6 @@ void StatUpdater::print() {
     outfile << "Average CPU Burst Time: " << tot_burst/num_tasks << " ms\t\tAverage Waiting Time: " << tot_wait/num_tasks << " ms" << std::endl
             << "Average Turnaround Time: " << tot_turn/num_tasks << " ms\t\tAverage Response Time: " << tot_resp/num_tasks << " ms" << std::endl
             << "Total No. of Context Switching Performed: " << contexts << std::endl;
+    // Close the output file
+    outfile.close();
 }
